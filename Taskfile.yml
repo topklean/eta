@@ -1,0 +1,30 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  GREETING: j'apprends le go en clonant la command linux ls
+  BUILDDIR: ./build
+  PROGNAME: tpkls
+
+tasks:
+  default:
+    cmds:
+      - echo "{{.GREETING}}"
+    silent: true
+
+  build:
+    cmds:
+      - go build -o {{.BUILDDIR}}/{{.PROGNAME}} .
+
+  run:
+    cmds:
+      - go run .
+
+  run_debug:
+    cmds:
+      - DEBUG=true go run .
+
+  edit:
+    cmds:
+      - vim *go
