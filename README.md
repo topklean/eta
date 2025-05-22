@@ -5,4 +5,4 @@
 * helping me to learn go.
 
 
-* using go-task for building (make replac
+* using go-task for building (replace make and Makefile)
