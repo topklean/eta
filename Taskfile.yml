@@ -17,6 +17,10 @@ tasks:
     cmds:
       - go build -o {{.BUILDDIR}}/{{.PROGNAME}} .
 
+  release:
+    cmds:
+      - go build -ldflags="-s -w" -o {{.BUILDDIR}}/{{.PROGNAME}} .
+
   run:
     cmds:
       - go run .

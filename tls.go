@@ -40,5 +40,6 @@ func init() {
 func main() {
 
 	listDir()
+	printListFiles()
 
 }
