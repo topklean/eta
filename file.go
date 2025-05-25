@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
+	"syscall"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -14,21 +16,14 @@ type dirEntryInfo struct {
 	absName    string
 	dirName    string
 	mode       string
+	userName   string
+	groupName  string
 	typeEntr   rune
 	inode      string
-	hardLink   int
+	hardLink   uint64
 	softLink   int
 	osIsDir    bool
-	osFileType fs.FileMode // onlyne type of file / ModeType =
-	//                            ModeDir |
-	//                            ModeSymlink |
-	//                            ModeNamedPipe |
-	//                            ModeSocket |
-	//                            ModeDevice |
-	//                            ModeCharDevice |
-	//                            ModeIrregular
 	osFileInfo fs.FileInfo // have a mode to. but include rwx
-	// mountPoint string  // maybe in the futur
 }
 
 // contrainte du go: obligé de passer par def type pour pointer sur slice pour receiver de methode
@@ -36,16 +31,109 @@ type sliceDirEntries []dirEntryInfo
 
 var dirEntries sliceDirEntries
 
-// var dirEntries mde
+func (dirEntries *sliceDirEntries) add(fileInfo fs.FileInfo, arg string) {
 
-// func (dirEntries *sliceDirEntries) add(dirEntry dirEntryInfo) {
-//     *dirEntries = append(*dirEntries, dirEntry)
-// }
+	// we need to rebuild the path for sym link
+	path, _ := filepath.Abs(arg)
 
-func init() {
-	//	dirEntries = append(dirEntries, dirEntryInfo{name: "toto"})
-	//
-	// my files (including dir)
+	// stat the file for uid/gid/hard link/size...
+	sys, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		fmt.Printf("Cannot stat file %s ...", arg)
+		return
+	}
+
+	userUid := fmt.Sprintf("%d", sys.Uid)
+	var userName string
+	user_name, err := user.LookupId(userUid)
+	if err != nil {
+		userName = userUid
+	} else {
+		userName = user_name.Username
+	}
+
+	groupGid := int(sys.Gid)
+	var groupName string
+	group_name, err := LookupId(groupGid) // opti withh internal cache
+	// so slow :(
+	//             group_name, err := user.LookupGroupId(groupGid)
+	if err != nil {
+		groupName = fmt.Sprintf("%d", groupGid)
+	} else {
+		groupName = group_name.Name
+	}
+
+	hard_link := sys.Nlink
+	*dirEntries = AppendDirEntry(*dirEntries, dirEntryInfo{
+		name:       fileInfo.Name(),
+		dirName:    path,
+		absName:    path + "/" + fileInfo.Name(),
+		typeEntr:   '-',
+		userName:   userName,
+		groupName:  groupName,
+		hardLink:   hard_link,
+		osFileInfo: fileInfo,
+	})
+}
+
+func (dirEntry dirEntryInfo) String() string {
+	switch conf.format {
+
+	case "long":
+		// get mod from osFile
+		// => [ T u g t rwx rwx rwx ]
+		mode := []rune(fmt.Sprintf("%s", dirEntry.osFileInfo.Mode()))
+		// get only the last 9 char rwxwxrwx
+		mode_tmp := mode[:len(mode)-9]
+		mode = mode[len(mode_tmp):]
+
+		if dirEntry.osFileInfo.Mode()&fs.ModeSetuid != 0 {
+			if mode[2] == 'x' {
+				mode[2] = 's'
+			} else {
+				mode[2] = 'S'
+			}
+		}
+
+		if dirEntry.osFileInfo.Mode()&fs.ModeSetgid != 0 {
+			if mode[5] == 'x' {
+				mode[5] = 's'
+			} else {
+				mode[5] = 'S'
+			}
+		}
+		//         spew.Dump(mode)
+
+		if dirEntry.osFileInfo.Mode()&fs.ModeSticky != 0 {
+			if mode[8] == 'x' {
+				mode[8] = 't'
+			} else {
+				mode[8] = 'T'
+			}
+		}
+		//         spew.Dump(mode)
+		modsep := ""
+		return fmt.Sprintf(
+			"%c%s%3s%s%3s%s%3s  %2d  %10s %10s %9d\t%v\t%s\n",
+			//                 "%c|%3s|%3s|%3s  %2d  %10s  %-10s %9d\t%v\t%s\n",
+			dirEntry.typeEntr,
+			modsep,
+			string(mode[0:3]),
+			modsep,
+			string(mode[3:6]),
+			modsep,
+			string(mode[6:]),
+			dirEntry.hardLink,
+			dirEntry.userName,
+			dirEntry.groupName,
+			dirEntry.osFileInfo.Size(),
+			dirEntry.osFileInfo.ModTime().Format("Jan 02 15:04"),
+			dirEntry.name,
+		)
+
+	}
+	return fmt.Sprintf("%s", dirEntry.name)
+	// return
 }
 
 func listDir() {
@@ -71,73 +159,49 @@ func listDir() {
 		//			rep
 		//			fichiers / args
 
+		//         spew.Dump(args)
 		direntries, err := os.ReadDir(arg)
+		//         fmt.Println("ReadDir done")
 		if err != nil {
 			// arg is a file not dir
-			path, _ := filepath.Abs(arg)
+			// stat and add it if no error
+			// we do not panic, continue en next arg if we got an error
 			direntry, err := os.Lstat(arg)
 			if err != nil {
 				fmt.Println(err)
-				continue
+			} else {
+				dirEntries.add(direntry, arg)
 			}
-			dirEntries = AppendDirEntry(dirEntries, dirEntryInfo{
-				name:       direntry.Name(),
-				dirName:    path,
-				absName:    path + "/" + direntry.Name(),
-				typeEntr:   '-',
-				osFileInfo: direntry,
-			})
 			continue
 		}
-		// rebuild the full path
-		// dot dotdot Dir
+
+		// dot(.) and otdot(..) Dir // -a or -A (not both)
 		if conf.dotFile && !conf.dotDir {
-			// arg is a file not dir
-			path, _ := filepath.Abs(".")
-			direntry, err := os.Lstat(".")
-			if err != nil {
-				fmt.Println(err)
-				continue
+
+			for _, d := range []string{".", ".."} {
+
+				direntry, err := os.Lstat(d)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				} else {
+					dirEntries.add(direntry, arg)
+				}
+
 			}
-			dirEntries = AppendDirEntry(dirEntries, dirEntryInfo{
-				name:       direntry.Name(),
-				dirName:    path,
-				absName:    path + "/" + direntry.Name(),
-				typeEntr:   '-',
-				osFileInfo: direntry,
-			})
-			path, _ = filepath.Abs("..")
-			direntry, err = os.Lstat("..")
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			dirEntries = AppendDirEntry(dirEntries, dirEntryInfo{
-				name:       direntry.Name(),
-				dirName:    path,
-				absName:    path + "/" + direntry.Name(),
-				typeEntr:   '-',
-				osFileInfo: direntry,
-			})
-			//             elms = append(, elms...)
 		}
 
+		// elements from readDir
 		for _, direntry := range direntries {
+
 			fileInfo, err := direntry.Info()
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			path, _ := filepath.Abs(arg)
-			dirEntries = AppendDirEntry(dirEntries, dirEntryInfo{
-				name:       direntry.Name(),
-				dirName:    path,
-				absName:    path + "/" + direntry.Name(),
-				typeEntr:   '-',
-				osFileType: direntry.Type(),
-				osFileInfo: fileInfo,
-			})
+			dirEntries.add(fileInfo, arg)
 		}
+
 	}
 
 	if conf.debug {
@@ -146,28 +210,21 @@ func listDir() {
 		fmt.Println("==========")
 	}
 
+	// Check type for dir entrie
+	// only needed in format :
+	// + color
+	// + -l --long
+
 	for i := range dirEntries {
 
-		const (
-			element_type = iota
-			user_read
-			user_write
-			user_execute
-			group_read
-			group_write
-			group_execute
-			other_read
-			other_write
-			other_execute
-		)
-
+		//         spew.Dump(dirEntries[i])
 		switch {
 
 		// link
-		case dirEntries[i].osFileType&fs.ModeSymlink != 0:
+		case dirEntries[i].osFileInfo.Mode()&fs.ModeSymlink != 0:
 			dirEntries[i].typeEntr = 'l'
 			// add the target
-			target, _ := os.Readlink(dirEntries[i].osFileInfo.Name())
+			target, _ := os.Readlink(dirEntries[i].absName)
 			dirEntries[i].name += " -> " + target
 
 		// dir ?
@@ -200,58 +257,20 @@ func listDir() {
 
 func printListFiles() {
 
-	fmt.Printf("Mod\t\tSize\tTime\t\tName\n")
 	for i := range dirEntries {
-		switch {
-		case conf.dotFile:
-		case !conf.dotDir && dirEntries[i].name[0] == '.':
+
+		// -a -A (hidden file and dot dotdot dir entries)
+		//         switch {
+		//         case conf.dotFile:
+		//         case !conf.dotDir && dirEntries[i].name[0] == '.':
+		//                 case !conf.dotFile && (!conf.dotDir && dirEntries[i].name[0] == '.'):
+		//             continue
+		//         }
+		if !conf.dotFile && !conf.dotDir && dirEntries[i].name[0] == '.' {
 			continue
 		}
 
-		// get mod from osFile
-		// => [ T u g t rwx rwx rwx ]
-		mode := []rune(fmt.Sprintf("%s", dirEntries[i].osFileInfo.Mode()))
-		// get only the last 9 char rwxwxrwx
-		mode_tmp := mode[:len(mode)-9]
-		mode = mode[len(mode_tmp):]
-		//         fmt.Printf("%s\n", string(mode))
-
-		if dirEntries[i].osFileInfo.Mode()&fs.ModeSetuid != 0 {
-			if mode[2] == 'x' {
-				mode[2] = 's'
-			} else {
-				mode[2] = 'S'
-			}
-		}
-
-		if dirEntries[i].osFileInfo.Mode()&fs.ModeSetgid != 0 {
-			if mode[5] == 'x' {
-				mode[5] = 's'
-			} else {
-				mode[5] = 'S'
-			}
-		}
-		//         spew.Dump(mode)
-
-		if dirEntries[i].osFileInfo.Mode()&fs.ModeSticky != 0 {
-			if mode[8] == 'x' {
-				mode[8] = 't'
-			} else {
-				mode[8] = 'T'
-			}
-		}
-		//         spew.Dump(mode)
-
-		fmt.Printf(
-			"%c|%3s|%3s|%3s %9d\t%v\t%s\n",
-			dirEntries[i].typeEntr,
-			string(mode[0:3]),
-			string(mode[3:6]),
-			string(mode[6:]),
-			dirEntries[i].osFileInfo.Size(),
-			dirEntries[i].osFileInfo.ModTime().Format("Jan 02 15:04"),
-			dirEntries[i].name,
-		)
+		fmt.Printf("%s", dirEntries[i])
 	}
 	return
 }

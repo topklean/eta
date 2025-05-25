@@ -51,6 +51,7 @@ type configuration struct {
 	dotDir      bool   // display or not the . .. file
 	colors      string // auto (default), always, none
 	inode       bool
+	format      string
 	sortReverse bool
 	oneperline  bool
 	dirOnly     bool // just display the directories
@@ -74,6 +75,7 @@ func (conf *configuration) configurationInit() {
 	conf.dirOnly = false
 	conf.dirFirst = true
 	conf.sortKey = "time"
+	conf.format = "short"
 
 	// working directory
 	cwd, err := os.Getwd()
@@ -155,6 +157,15 @@ func (params *parameters) paramsInit() int {
 			Value:   new(bool),
 			//             DefaultValue: false,
 			DefaultValue: conf.inode,
+		},
+		"long": {
+			Name:    "long",
+			Opt:     "l",
+			OptLong: "long",
+			Help:    "long format: mod|user|group|size|date last modifications|name",
+			Value:   new(bool),
+			//             DefaultValue: false,
+			DefaultValue: false,
 		},
 		"reverse": {
 			Name:    "revert sort",
@@ -288,6 +299,9 @@ func paramsSetConf(confProvided configuration, params parameters) configuration 
 	confProvided.dirOnly = *params["dirOnly"].Value.(*bool)
 	confProvided.dirFirst = *params["dirFirst"].Value.(*bool)
 	confProvided.sortKey = *params["sortKey"].Value.(*string)
+	if *params["long"].Value.(*bool) {
+		confProvided.format = "long"
+	}
 
 	return confProvided
 }
@@ -298,31 +312,7 @@ func (conf configuration) configurationDump() {
 	fmt.Println("Configuration")
 	fmt.Println("-------------")
 	spew.Dump(conf)
-	//     fmt.Printf("current dir     %v\n", conf.cwd)
 	fmt.Println("===================")
-	//     fmt.Printf("%-20s%-20v\n", "progName", conf.progName)
-	//     fmt.Printf("%-20s%-20v\n", "colors", conf.colors)
-	//     fmt.Printf("%-20s%-20v\n", "dotDir", conf.dotDir)
-	//     fmt.Printf("colors%30v\n", conf.colors)
-	//     fmt.Printf("dotDir%30v\n", conf.dotDir)
-	//     fmt.Printf("DirOnly%30v\n", conf.dirOnly)
-	//     fmt.Printf("DirFirst%30v\n", conf.dirFirst)
-	//     fmt.Printf("dotFile%30v\n", conf.dotFile)
-	//     fmt.Printf("sortRese%30v\n", conf.sortReverse)
-	//     fmt.Printf("sortKey%30v\n", conf.sortKey)
-
-	//     std := func(std string, sttyType string) {
-	//         if std == typeCharDevice {
-	//             fmt.Printf("stty.%s %v\n", sttyType, std)
-	//         } else {
-	//             fmt.Printf("stty.%s (not on stty):  %s\n", sttyType, std)
-	//         }
-	//     }
-	//     std(conf.stty.stdinType, "conf.stty.stdinType")
-	//     std(conf.stty.stdoutType, "conf.stty.stdoutType")
-	//     std(conf.stty.stderrType, "conf.stty.stderrType")
-
-	//     fmt.Printf("stty.colors     %v\n", conf.stty.colors)
 }
 
 func (params parameters) paramsDump(argsOS []string) {
@@ -332,60 +322,6 @@ func (params parameters) paramsDump(argsOS []string) {
 	spew.Dump(argsOS)
 	spew.Dump(params)
 	fmt.Println("===================")
-
-	//     if len(argsOS) < 0 {
-	//         fmt.Printf("{")
-	//         fmt.Printf("\"os args\": [")
-
-	//         fmt.Printf("{")
-	//         for i, v := range argsOS {
-	//             fmt.Printf("\"Args[%d]:\" \"%v\"", i, v)
-	//             if i != len(argsOS)-1 {
-	//                 fmt.Printf(", ")
-	//             }
-	//         }
-
-	//         fmt.Printf("}")
-	//         fmt.Printf("]")
-
-	//     }
-
-	//     x := 0 // count element of map args
-	//     for j := range params {
-	//         val := reflect.ValueOf(params[j])
-	//         typeOfStruct := val.Type()
-
-	//         fmt.Printf("           {\n")
-	//         switch reflect.TypeOf(params[j].DefaultValue).String() {
-	//         case "string":
-	//             fmt.Printf("%s: short=%s | long=%s\n", params[j].Name, *params[j].Value.(*string), *params[j].Value.(*string))
-	//         case "bool":
-	//             fmt.Printf("%s: short=%t | long=%t\n", params[j].Name, *params[j].Value.(*bool), *params[j].Value.(*bool))
-	//         case "int":
-	//             fmt.Printf("%s: short=%d | long=%d\n", params[j].Name, *params[j].Value.(*int), *params[j].Value.(*int))
-	//         default:
-
-	//         }
-	//         for i := range val.NumField() {
-	//             if val.Field(i).Interface() == "" {
-	//                 continue
-	//             }
-	//             fmt.Printf("               \"%s\": \"%v\"", typeOfStruct.Field(i).Name, val.Field(i).Interface())
-	//             if i < val.NumField()-1 {
-	//                 fmt.Printf(",")
-	//             }
-	//             fmt.Println()
-	//         }
-	//         fmt.Printf("           }")
-	//         if x < len(params)-1 {
-	//             fmt.Printf(",")
-	//         }
-	//         x++
-	//         fmt.Println()
-	//     }
-
-	// fmt.Printf("  ]\n")
-	// fmt.Printf("}")
 }
 
 func (args arguments) argsDump() {
