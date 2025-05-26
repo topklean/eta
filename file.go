@@ -64,11 +64,60 @@ func (dirEntries *sliceDirEntries) add(fileInfo fs.FileInfo, arg string) {
 	}
 
 	hard_link := sys.Nlink
+
+	// type of entry
+	typeEntrie := '-'
+	// target of link
+	var target string
+	// get mod of entry
+	mode := fileInfo.Mode()
+	//
+	switch {
+
+	// link
+	case mode&fs.ModeSymlink != 0:
+		typeEntrie = 'l'
+		// add the target
+		target, err := os.Readlink(path)
+		if err != nil {
+			target = "-> target not found..."
+		} else {
+			target = "->" + target
+		}
+
+		// dir ?
+	case mode&fs.ModeDir != 0:
+		typeEntrie = 'd'
+
+	// Charactere Device
+	case mode&fs.ModeCharDevice != 0:
+		typeEntrie = 'c'
+		// get major number
+
+	// Device
+	case mode&fs.ModeDevice != 0:
+		typeEntrie = 'b'
+
+	// Pipe
+	case mode&fs.ModeNamedPipe != 0:
+		typeEntrie = 'p'
+
+	// Socket
+	case mode&fs.ModeSocket != 0:
+		typeEntrie = 's'
+	}
+
+	// Append ?
+	if mode&fs.ModeAppend != 0 {
+		typeEntrie = 'a'
+	}
+
+	//     var := len
 	*dirEntries = AppendDirEntry(*dirEntries, dirEntryInfo{
-		name:       fileInfo.Name(),
+		name:       fileInfo.Name() + target,
 		dirName:    path,
 		absName:    path + "/" + fileInfo.Name(),
-		typeEntr:   '-',
+		typeEntr:   typeEntrie,
 		userName:   userName,
 		groupName:  groupName,
 		hardLink:   hard_link,
@@ -131,8 +180,12 @@ func (dirEntry dirEntryInfo) String() string {
 			dirEntry.name,
 		)
 
+	case "one":
+		return fmt.Sprintf("%s\n", dirEntry.name)
+	default:
+		return fmt.Sprintf("%s  ", dirEntry.name)
 	}
-	return fmt.Sprintf("%s", dirEntry.name)
+
 	// return
 }
 
@@ -215,44 +268,6 @@ func listDir() {
 	// + color
 	// + -l --long
 
-	for i := range dirEntries {
-
-		//         spew.Dump(dirEntries[i])
-		switch {
-
-		// link
-		case dirEntries[i].osFileInfo.Mode()&fs.ModeSymlink != 0:
-			dirEntries[i].typeEntr = 'l'
-			// add the target
-			target, _ := os.Readlink(dirEntries[i].absName)
-			dirEntries[i].name += " -> " + target
-
-		// dir ?
-		case dirEntries[i].osFileInfo.Mode()&fs.ModeDir != 0:
-			dirEntries[i].typeEntr = 'd'
-
-		// Charactere Device
-		case dirEntries[i].osFileInfo.Mode()&fs.ModeCharDevice != 0:
-			dirEntries[i].typeEntr = 'c'
-
-		// Device
-		case dirEntries[i].osFileInfo.Mode()&fs.ModeDevice != 0:
-			dirEntries[i].typeEntr = 'b'
-
-		// Pipe
-		case dirEntries[i].osFileInfo.Mode()&fs.ModeNamedPipe != 0:
-			dirEntries[i].typeEntr = 'p'
-
-		// Socket
-		case dirEntries[i].osFileInfo.Mode()&fs.ModeSocket != 0:
-			dirEntries[i].typeEntr = 's'
-		}
-
-		// Append ?
-		if dirEntries[i].osFileInfo.Mode()&fs.ModeAppend != 0 {
-			dirEntries[i].typeEntr = 'a'
-		}
-	}
 }
 
 func printListFiles() {
@@ -270,7 +285,20 @@ func printListFiles() {
 			continue
 		}
 
-		fmt.Printf("%s", dirEntries[i])
+		/*
+			nombre de fichiers
+			nombre de colonnes
+			ex : 1000
+			for I := range dirEntries { if len(dirEntry[i]) > maxDirEntryLen) { maxDirEntryLen = len(dirEntry[i]) } }
+			long collon / plus long => nobr colonne
+
+		*/
+
+		//     switch conf.format {
+		//         case ""
+		//     }
+		pf := "%s"
+		fmt.Printf(pf, dirEntries[i])
 	}
 	return
 }

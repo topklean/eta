@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/davecgh/go-spew/spew"
+	"golang.org/x/term"
 )
 
 // Parameters hof command line
@@ -47,6 +48,8 @@ type configuration struct {
 	progVersion string
 	os          string
 	stty        structConfStty
+	ttySizeCol  int
+	nameMaxLen  uint
 	dotFile     bool   // display or not hidden file
 	dotDir      bool   // display or not the . .. file
 	colors      string // auto (default), always, none
@@ -86,11 +89,13 @@ func (conf *configuration) configurationInit() {
 		conf.cwd = cwd
 	}
 
+	// Obtenir le descripteur de fichier pour le terminal  fd := int(os.Stdout.Fd())   // Obtenir la taille du terminal  width, _, err := term.GetSize(fd)  if err != nil {   fmt.Println("Erreur lors de la récupération de la taille du terminal:", err)   return  }   fmt.Printf("Largeur du terminal: %d caractères\n", width) ```
 	// stdout
 	o, _ := os.Stdout.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
 		//Display info to the terminal
 		conf.stty.stdoutType = typeCharDevice
+		conf.ttySizeCol, _, err = term.GetSize(int(os.Stdout.Fd()))
 	} else { //It is not the terminal
 		// Display info to a pipe
 		conf.stty.stdoutType = typePipe
@@ -176,7 +181,7 @@ func (params *parameters) paramsInit() int {
 			//             DefaultValue: false,
 			DefaultValue: conf.sortReverse,
 		},
-		"one per line": {
+		"one": {
 			Name:    "one",
 			Opt:     "1",
 			OptLong: "one",
@@ -295,12 +300,15 @@ func paramsSetConf(confProvided configuration, params parameters) configuration 
 	confProvided.colors = *params["color"].Value.(*string)
 	confProvided.sortReverse = *params["reverse"].Value.(*bool)
 	confProvided.inode = *params["inode"].Value.(*bool)
-	confProvided.oneperline = *params["one per line"].Value.(*bool)
+	confProvided.oneperline = *params["one"].Value.(*bool)
 	confProvided.dirOnly = *params["dirOnly"].Value.(*bool)
 	confProvided.dirFirst = *params["dirFirst"].Value.(*bool)
 	confProvided.sortKey = *params["sortKey"].Value.(*string)
 	if *params["long"].Value.(*bool) {
 		confProvided.format = "long"
+	}
+	if *params["one"].Value.(*bool) {
+		confProvided.format = "one"
 	}
 
 	return confProvided
