@@ -15,6 +15,7 @@ type dirEntryInfo struct {
 	name       string
 	absName    string
 	dirName    string
+	nameLen    int
 	mode       string
 	userName   string
 	groupName  string
@@ -112,11 +113,18 @@ func (dirEntries *sliceDirEntries) add(fileInfo fs.FileInfo, arg string) {
 		typeEntrie = 'a'
 	}
 
-	//     var := len
+	// keep filename max len (for futur formating printing)
+	fileName := fileInfo.Name()
+	namelen := len(fileName)
+	if namelen >= format.nameMaxLen {
+		format.nameMaxLen = namelen
+	}
+
 	*dirEntries = AppendDirEntry(*dirEntries, dirEntryInfo{
-		name:       fileInfo.Name() + target,
+		name:       fileName + target,
 		dirName:    path,
-		absName:    path + "/" + fileInfo.Name(),
+		absName:    path + "/" + fileName,
+		nameLen:    namelen,
 		typeEntr:   typeEntrie,
 		userName:   userName,
 		groupName:  groupName,
@@ -182,8 +190,17 @@ func (dirEntry dirEntryInfo) String() string {
 
 	case "one":
 		return fmt.Sprintf("%s\n", dirEntry.name)
+
 	default:
-		return fmt.Sprintf("%s  ", dirEntry.name)
+		//         fmt.Println(conf.formatColRemaining)
+		if format.ColRemaining > 1 {
+			format.ColRemaining = format.ColRemaining - 1
+			return fmt.Sprintf(format.One+"│", dirEntry.name)
+		} else {
+			format.ColRemaining = format.MaxCol
+
+			return fmt.Sprintf(format.One+"│\n", dirEntry.name)
+		}
 	}
 
 	// return
@@ -268,37 +285,4 @@ func listDir() {
 	// + color
 	// + -l --long
 
-}
-
-func printListFiles() {
-
-	for i := range dirEntries {
-
-		// -a -A (hidden file and dot dotdot dir entries)
-		//         switch {
-		//         case conf.dotFile:
-		//         case !conf.dotDir && dirEntries[i].name[0] == '.':
-		//                 case !conf.dotFile && (!conf.dotDir && dirEntries[i].name[0] == '.'):
-		//             continue
-		//         }
-		if !conf.dotFile && !conf.dotDir && dirEntries[i].name[0] == '.' {
-			continue
-		}
-
-		/*
-			nombre de fichiers
-			nombre de colonnes
-			ex : 1000
-			for I := range dirEntries { if len(dirEntry[i]) > maxDirEntryLen) { maxDirEntryLen = len(dirEntry[i]) } }
-			long collon / plus long => nobr colonne
-
-		*/
-
-		//     switch conf.format {
-		//         case ""
-		//     }
-		pf := "%s"
-		fmt.Printf(pf, dirEntries[i])
-	}
-	return
 }

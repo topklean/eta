@@ -47,9 +47,8 @@ type configuration struct {
 	progName    string // if called with an link, we can change behaviors
 	progVersion string
 	os          string
-	stty        structConfStty
+	tty         structConfStty
 	ttySizeCol  int
-	nameMaxLen  uint
 	dotFile     bool   // display or not hidden file
 	dotDir      bool   // display or not the . .. file
 	colors      string // auto (default), always, none
@@ -89,34 +88,36 @@ func (conf *configuration) configurationInit() {
 		conf.cwd = cwd
 	}
 
-	// Obtenir le descripteur de fichier pour le terminal  fd := int(os.Stdout.Fd())   // Obtenir la taille du terminal  width, _, err := term.GetSize(fd)  if err != nil {   fmt.Println("Erreur lors de la récupération de la taille du terminal:", err)   return  }   fmt.Printf("Largeur du terminal: %d caractères\n", width) ```
 	// stdout
 	o, _ := os.Stdout.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
 		//Display info to the terminal
-		conf.stty.stdoutType = typeCharDevice
+		conf.tty.stdoutType = typeCharDevice
 		conf.ttySizeCol, _, err = term.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			panic(err)
+		}
 	} else { //It is not the terminal
 		// Display info to a pipe
-		conf.stty.stdoutType = typePipe
+		conf.tty.stdoutType = typePipe
 	}
 	// stdin
 	o, _ = os.Stdin.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
 		//Display info to the terminal
-		conf.stty.stdinType = typeCharDevice
+		conf.tty.stdinType = typeCharDevice
 	} else { //It is not the terminal
 		// Display info to a pipe
-		conf.stty.stdinType = typePipe
+		conf.tty.stdinType = typePipe
 	}
 	// stderr
 	o, _ = os.Stderr.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
 		//Display info to the terminal
-		conf.stty.stderrType = typeCharDevice
+		conf.tty.stderrType = typeCharDevice
 	} else { //It is not the terminal
 		// Display info to a pipe
-		conf.stty.stderrType = typePipe
+		conf.tty.stderrType = typePipe
 	}
 
 	// debug

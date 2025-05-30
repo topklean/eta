@@ -1,11 +1,5 @@
 package main
 
-// on fait quoi aujourd'hui ???
-// ajout de logs (slog)
-// ajout prise en charge des args ligne de commandes
-// on ajoute les inodes
-// formatage => couleurs
-// organiser les sources (ajout de fonctions...)
 import (
 	"os"
 )
@@ -14,9 +8,11 @@ import (
 
 var conf configuration
 var args arguments
+var format formatStruct
 
 func init() {
 	var params parameters
+
 	// conf
 	conf.configurationInit()
 
@@ -30,16 +26,23 @@ func init() {
 		conf = paramsSetConf(conf, params)
 	}
 
+	// format init
+	//     format.formatInit()
+
 	// debug
 	if conf.debug {
 		conf.configurationDump()
 		params.paramsDump(os.Args)
 		args.argsDump()
+		//         spew.Dump(format)
 	}
+
 }
+
 func main() {
 
 	listDir()
+
 	printListFiles()
 
 }
