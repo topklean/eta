@@ -1,14 +1,20 @@
+/*
+main.main
+*/
 package main
 
 import (
+	"fmt"
 	"os"
+	"time"
 )
 
 // const Debug = true
 
 var conf configuration
 var args arguments
-var format formatStruct
+
+// var format formatStruct
 
 func init() {
 	var params parameters
@@ -26,23 +32,27 @@ func init() {
 		conf = paramsSetConf(conf, params)
 	}
 
-	// format init
-	//     format.formatInit()
-
 	// debug
 	if conf.debug {
 		conf.configurationDump()
 		params.paramsDump(os.Args)
 		args.argsDump()
-		//         spew.Dump(format)
 	}
-
 }
 
 func main() {
 
+	listbegin := time.Now().UnixMilli()
 	listDir()
+	listend := time.Now().UnixMilli()
 
-	printListFiles()
+	begin := time.Now().UnixMilli()
+	if len(dirEntries) > 0 {
+		printListFiles()
+	}
+	end := time.Now().UnixMilli()
+
+	fmt.Printf("list: %d\n", listend-listbegin)
+	fmt.Printf("print: %d\n", end-begin)
 
 }

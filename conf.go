@@ -34,6 +34,11 @@ const (
 	typePipe       string = "pipe"
 	typeFifo       string = "fifo"
 	typeCharDevice string = "charDevice"
+	indicatorExe   string = "*"
+	indicatorDir   string = "/"
+	indicatorLink  string = "@"
+	indicatorPipe  string = "|"
+	indicatorSock  string = "="
 )
 
 type structConfStty struct {
@@ -58,13 +63,18 @@ type configuration struct {
 	oneperline  bool
 	dirOnly     bool // just display the directories
 	dirFirst    bool // display dir first
+	indicator   bool
 	sortKey     string
-	cwd         string // current working directory
-	debug       bool
+
+	cwd   string // current working directory
+	debug bool
 }
+
+// var Indicator map[string]rune // char to add at the end of dirEntries * = / @  |
 
 // func Conf
 func (conf *configuration) configurationInit() {
+
 	conf.progName = os.Args[0]
 	conf.os = runtime.GOOS
 	conf.progVersion = "0.0.1"
@@ -78,6 +88,7 @@ func (conf *configuration) configurationInit() {
 	conf.dirFirst = true
 	conf.sortKey = "time"
 	conf.format = "short"
+	conf.indicator = false
 
 	// working directory
 	cwd, err := os.Getwd()
@@ -90,15 +101,19 @@ func (conf *configuration) configurationInit() {
 
 	// stdout
 	o, _ := os.Stdout.Stat()
-	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
+	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
+		//Terminal
+		// TBD: must test if redirection in file
+
 		//Display info to the terminal
 		conf.tty.stdoutType = typeCharDevice
 		conf.ttySizeCol, _, err = term.GetSize(int(os.Stdout.Fd()))
-		if err != nil {
-			panic(err)
-		}
-	} else { //It is not the terminal
+		//         if err != nil {
+		//             panic(err)
+		//         }
+	} else {
 		// Display info to a pipe
+		fmt.Fprintf(os.Stderr, "ERR: stdout not a terminal\n")
 		conf.tty.stdoutType = typePipe
 	}
 	// stdin
@@ -195,10 +210,18 @@ func (params *parameters) paramsInit() int {
 			Name:    "dirOnly",
 			Opt:     "d",
 			OptLong: "dir",
-			Help:    "list only directories",
+			Help:    "list directories not their contents",
 			Value:   new(bool),
 			//             DefaultValue: false,
 			DefaultValue: conf.dirOnly,
+		},
+		"indicator": {
+			Name: "indicator",
+			Opt:  "F",
+			//             OptLong:      "",
+			Help:         "append indicator (one of */=>@|) to entries",
+			Value:        new(bool),
+			DefaultValue: conf.indicator,
 		},
 		"dirFirst": {
 			Name:    "dirFirst",
@@ -265,10 +288,11 @@ func (params *parameters) paramsInit() int {
 			"A", "ALL",
 			"c", "color",
 			"i", "inode",
-			"r", "reverse",
 			"1", "one",
 			"d", "dir",
+			"F",
 			"g", "group-directories-first",
+			"r", "reverse",
 			"k", "sort-key",
 			"h", "help",
 		}
@@ -296,6 +320,7 @@ func (args *arguments) argsInit() {
 }
 
 func paramsSetConf(confProvided configuration, params parameters) configuration {
+
 	confProvided.dotFile = *params["all"].Value.(*bool)
 	confProvided.dotDir = *params["almost-all"].Value.(*bool)
 	confProvided.colors = *params["color"].Value.(*string)
@@ -305,6 +330,8 @@ func paramsSetConf(confProvided configuration, params parameters) configuration 
 	confProvided.dirOnly = *params["dirOnly"].Value.(*bool)
 	confProvided.dirFirst = *params["dirFirst"].Value.(*bool)
 	confProvided.sortKey = *params["sortKey"].Value.(*string)
+	confProvided.indicator = *params["indicator"].Value.(*bool)
+
 	if *params["long"].Value.(*bool) {
 		confProvided.format = "long"
 	}
