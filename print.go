@@ -22,15 +22,21 @@ var padding = 0
 const MINCOLUMNWIDTH = 3
 
 func getTTYMaxColumns() int {
+
 	ttyLineLen := conf.ttySizeCol
+	//     log.Printf("tty size col: %d\n", ttyLineLen)
 	maxCols := ttyLineLen / MINCOLUMNWIDTH
+	//     log.Printf("maxCols: %d\n", maxCols)
 
 	return maxCols
 }
 
 func initInfoColumns(maxCols int) {
+	//     log.Printf("maxCols: %d\n", maxCols)
+	//     fmt.Scanf("%s")
 
 	for i := range maxCols {
+		//         log.Printf("init in col, i range: %d\n", i)
 
 		var columnInfo columnLayoutInfo
 		columnInfo.validLen = true
@@ -52,20 +58,27 @@ func (direntries *sliceDirEntries) getColumnsLayout(byColumn bool) int {
 	if ttyMaxCols < 0 {
 		return 1
 	}
+	//     log.Printf("ttyMAxCol: %d", ttyMaxCols)
 
 	filesCount := len(*direntries)
 
-	maxCols := filesCount
+	maxCols := 1
+	//     maxCols := filesCount
 	//     var maxCols int
 	if 0 < ttyMaxCols && ttyMaxCols < filesCount {
 		maxCols = ttyMaxCols
 		//     } else {
 		//         maxCols = filesCount
 	}
+	//     log.Printf(": %d", ttyMaxCols)
 
+	//     log.Printf("before init col\n")
 	initInfoColumns(maxCols)
+	//     log.Printf("after init Info Colum, maxCols: %d\n", maxCols)
 
+	//     log.Printf("before loop dir")
 	for fileIndex, file := range *direntries {
+		//         log.Printf("fileIndex: %d\n", fileIndex)
 		nameLen := file.displayNameLen + padding
 
 		for colIndex := range maxCols {
@@ -104,8 +117,13 @@ func (direntries *sliceDirEntries) getColumnsLayout(byColumn bool) int {
 
 func (dirEntries *sliceDirEntries) printByColumn() {
 
+	//     log.Printf("Before row loop, stdout type: %s\n", conf.tty.stdoutType)
 	cols := dirEntries.getColumnsLayout(true)
 	// TBD: adding error management for cols < 0
+	if cols <= 0 {
+		cols = 1
+	}
+
 	colLayout := columnsLayout[cols-1].colsArray
 
 	// len list to display
@@ -116,21 +134,44 @@ func (dirEntries *sliceDirEntries) printByColumn() {
 	if (listCount % cols) != 0 {
 		rows += 1
 	}
+
 	var screenBuff strings.Builder
+
 	for row := range rows {
 		//         var str string
 		col := 0
 		filesno := row
 		pos := 0
-
+		//         var line string
+		//         log.Printf("row: %d\n", row)
 		for true {
 			maxNameLen := colLayout[col]
 			col++
+			//             log.Printf("stdout: %s, Type: %s\n", conf.tty.stdoutType, TypeCharDevice)
+			//             log.Println("(before tty check) in for true")
+			//             runtime.Breakpoint()
+			//             if conf.tty.stdoutType == TypeCharDevice {
+			//                 log.Println("(screenBuf) in for true")
 			screenBuff.WriteString((*dirEntries)[filesno].displayName)
+			//             } else if conf.tty.stdoutType == TypeFile || conf.tty.stdoutType == TypePipe {
+			//                 log.Println("(Sprintf) in for true")
+			//                 line += fmt.Sprintf("%s", (*dirEntries)[filesno].displayName)
+			//             }
+			//             if err != nil {
+			//                 log.Fatal("oups: " + err.Error())
+			//             }
 			p := maxNameLen - (*dirEntries)[filesno].displayNameLen
+			//             log.Println("(before padding space) in for true")
+			//             line += fmt.Sprintf("%s", (*dirEntries)[filesno].displayName)
+
+			//             if conf.tty.stdoutType == TypeCharDevice {
 			for i := 0; i < p; i++ {
 				screenBuff.WriteRune(' ')
 			}
+			//             } else if conf.tty.stdoutType == TypeFile || conf.tty.stdoutType == TypePipe {
+			//                 for i := 0; i < p; i++ {
+			//                     line += " "
+			//                 }
 			if listCount-rows <= filesno {
 				break
 			}
@@ -138,9 +179,35 @@ func (dirEntries *sliceDirEntries) printByColumn() {
 			pos += maxNameLen
 		}
 		screenBuff.WriteString("\n")
+		//             log.Println("(after padding space) in for true")
 	}
+	//         log.Println("after for true")
+	//         if conf.tty.stdoutType == TypeCharDevice {
+	//         } else if conf.tty.stdoutType == TypeFile || conf.tty.stdoutType == TypePipe {
+	//             line += "\n"
+	//         }
+
+	//         if conf.tty.stdoutType == TypeFile || conf.tty.stdoutType == TypePipe {
+	//             fmt.Println("coucou")
+	//             log.Fatal("not in tty")
+	//             spew.Dump(screenBuff)
+	//             fmt.Printf("%s", line)
+	//             fmt.Fprint(os.Stdout, screenBuff.String())
+	//             fmt.Println("coucou")
+	//             fmt.Println(screenBuff.String())
+	//             screenBuff.Reset()
+	//         }
+	//     }
 	// io.Copy(os.Stdout, byte(screenBuff)[])
+	//             screenBuff.Reset()
+	//     if conf.tty.stdoutType == TypeCharDevice {
 	fmt.Println(screenBuff.String())
+	//	    }
+	//		screenBuff
+	//
+	// screenBuff.Reset()
+	// fmt.Println(screenBuff.String())
+	// fmt.Println(screenBuff.String())
 }
 
 func (dirEntries *sliceDirEntries) printLong() {
@@ -230,6 +297,7 @@ func printListFiles() {
 		return a < b
 	})
 
+	//     log.Println("after sort: begin print by column")
 	switch conf.format {
 	case "long":
 		dirEntries.printLong()

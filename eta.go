@@ -1,5 +1,6 @@
 /*
 main.main
+for git
 */
 package main
 
@@ -65,6 +66,7 @@ func main() {
 
 	//     begin := time.Now().UnixMilli()
 	//     printColors()
+	//     log.Println("begin print by column")
 	if len(dirEntries) > 0 {
 		printListFiles()
 	}

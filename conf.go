@@ -30,10 +30,10 @@ const (
 	colorsAlways   string = "always"
 	colorsNever    string = "never"
 	colorsNone     string = "none"
-	typeFile       string = "file"
-	typePipe       string = "pipe"
-	typeFifo       string = "fifo"
-	typeCharDevice string = "charDevice"
+	TypeFile       string = "file"
+	TypePipe       string = "pipe"
+	TypeFifo       string = "fifo"
+	TypeCharDevice string = "charDevice"
 	indicatorExe   string = "*"
 	indicatorDir   string = "/"
 	indicatorLink  string = "@"
@@ -89,6 +89,7 @@ func (conf *configuration) configurationInit() {
 	conf.sortKey = "time"
 	conf.format = "short"
 	conf.indicator = false
+	conf.ttySizeCol = 0
 
 	// working directory
 	cwd, err := os.Getwd()
@@ -101,39 +102,76 @@ func (conf *configuration) configurationInit() {
 
 	// stdout
 	o, _ := os.Stdout.Stat()
+	//     rl, _ := os.Readlink(os.Stdout.Name())
+	//     log.Printf("(global) stdout name: %s, fd: %d, link: %s\n", os.Stdout.Name(), os.Stdout.Fd(), rl)
+	//     log.Printf("mode       : %032b\n", o.Mode())
+
+	//     log.Printf("mode dir   : %032b\n", os.ModeDir)
+	//     log.Printf("mode append: %032b\n", os.ModeAppend)
+	//     log.Printf("mode exclus: %032b\n", os.ModeExclusive)
+	//     log.Printf("mode Temp  : %032b\n", os.ModeTemporary)
+	//     log.Printf("mode Symlin: %032b\n", os.ModeSymlink)
+	//     log.Printf("mode dev   : %032b\n", os.ModeDevice)
+	//     log.Printf("mode pipe  : %032b\n", os.ModeNamedPipe)
+	//     log.Printf("mode socket: %032b\n", os.ModeSocket)
+	//     log.Printf("mode suid  : %032b\n", os.ModeSetuid)
+	//     log.Printf("mode guid  : %032b\n", os.ModeSetgid)
+	//     log.Printf("mode char d: %032b\n", os.ModeCharDevice)
+	//     log.Printf("mode sitcky: %032b\n", os.ModeSticky)
+	//     log.Printf("mode irregu: %032b\n", os.ModeIrregular)
+	//     log.Printf("mode type  : %032b\n", os.ModeType)
+
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
 		//Terminal
-		//Display info to the terminal
-		conf.tty.stdoutType = typeCharDevice
+		//         conf.tty.stdoutType = TypeCharDevice
+		//         rl, _ := os.Readlink(os.Stdout.Name())
+		//         log.Printf("(term) stdout name: %s, fd: %d, link: %s\n", os.Stdout.Name(), os.Stdout.Fd(), rl)
+		//         log.Printf("stdout: %s", o.Name())
+		conf.tty.stdoutType = TypeCharDevice
 		conf.ttySizeCol, _, err = term.GetSize(int(os.Stdout.Fd()))
 		//         if err != nil {
 		//             panic(err)
 		//         }
-	} else {
-		// Display info to a pipe
-		//         fmt.Fprintf(os.Stderr, "ERR: stdout not a terminal\n")
+		//     }else {
+	}
+	if (o.Mode() & os.ModeNamedPipe) == os.ModeNamedPipe {
+		// pipe
 		// ls algo when en grid mod, just one columns
-		conf.tty.stdoutType = typePipe
+		//         rl, _ := os.Readlink(os.Stdout.Name())
+		//         log.Printf("(pipe)stdout name: %s, fd: %d, link: %s\n", os.Stdout.Name(), os.Stdout.Fd(), rl)
+		//         log.Printf("stdout(pipe): %s", o.Name())
+		//         conf.ttySizeCol = 80
+		conf.tty.stdoutType = TypePipe
+	}
+	if (o.Mode() & os.ModeType) == 0 {
+		// file redirection
+		// ls algo when en grid mod, just one columns
+		//         rl, _ := os.Readlink(os.Stdout.Name())
+		//         log.Printf("(pipe)stdout name: %s, fd: %d, link: %s\n", os.Stdout.Name(), os.Stdout.Fd(), rl)
+		//         log.Printf("stdout(pipe): %s", o.Name())
+		//         conf.ttySizeCol = 80
+		//         conf.ttySizeCol, _, err = term.GetSize(int(os.Stdout.Fd()))
+		conf.tty.stdoutType = TypeFile
 	}
 
 	// stdin
 	o, _ = os.Stdin.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
-		//Display info to the terminal
-		conf.tty.stdinType = typeCharDevice
+		// Terminal or file redirection
+		conf.tty.stdinType = TypeCharDevice
 	} else { //It is not the terminal
 		// Display info to a pipe
-		conf.tty.stdinType = typePipe
+		conf.tty.stdinType = TypePipe
 	}
 
 	// stderr
 	o, _ = os.Stderr.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
 		//Display info to the terminal
-		conf.tty.stderrType = typeCharDevice
+		conf.tty.stderrType = TypeCharDevice
 	} else { //It is not the terminal
 		// Display info to a pipe
-		conf.tty.stderrType = typePipe
+		conf.tty.stderrType = TypePipe
 	}
 
 	// debug
@@ -327,7 +365,7 @@ func paramsSetConf(confProvided configuration, params parameters) configuration 
 	confProvided.dotDir = *params["almost-all"].Value.(*bool)
 
 	colors := *params["color"].Value.(*string)
-	if (colors == "auto" && conf.tty.stdoutType == typeCharDevice) ||
+	if (colors == "auto" && conf.tty.stdoutType == TypeCharDevice) ||
 		colors == "always" {
 		confProvided.colorsEnable = true
 	} else {
