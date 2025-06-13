@@ -45,7 +45,7 @@ func init() {
 }
 
 func main() {
-	// TBD : hyperlink
+	// TBD : hyperlink on the terminal like eza
 
 	//     f, err := os.Create("cpu.prof")
 	//     if err != nil {

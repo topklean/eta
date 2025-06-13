@@ -1,4 +1,4 @@
-module dodo/eta
+module github/topklean/eta
 
 go 1.24.2
 
