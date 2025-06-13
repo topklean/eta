@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
 )
@@ -101,7 +102,6 @@ func (direntries *sliceDirEntries) getColumnsLayout(byColumn bool) int {
 	return cols
 }
 
-// method on direntries
 func (dirEntries *sliceDirEntries) printByColumn() {
 
 	cols := dirEntries.getColumnsLayout(true)
@@ -143,13 +143,69 @@ func (dirEntries *sliceDirEntries) printByColumn() {
 	fmt.Println(screenBuff.String())
 }
 
+func (dirEntries *sliceDirEntries) printLong() {
+	for _, dirEntry := range *dirEntries {
+		// get mod from osFile
+		// => [ T u g t rwx rwx rwx ]
+		mode := []rune(fmt.Sprintf("%s", dirEntry.osFileInfo.Mode()))
+		// get only the last 9 char rwxwxrwx
+		mode_tmp := mode[:len(mode)-9]
+		mode = mode[len(mode_tmp):]
+
+		if dirEntry.osFileInfo.Mode()&fs.ModeSetuid != 0 {
+			if mode[2] == 'x' {
+				mode[2] = 's'
+			} else {
+				mode[2] = 'S'
+			}
+		}
+
+		if dirEntry.osFileInfo.Mode()&fs.ModeSetgid != 0 {
+			if mode[5] == 'x' {
+				mode[5] = 's'
+			} else {
+				mode[5] = 'S'
+			}
+		}
+		//         spew.Dump(mode)
+
+		if dirEntry.osFileInfo.Mode()&fs.ModeSticky != 0 {
+			if mode[8] == 'x' {
+				mode[8] = 't'
+			} else {
+				mode[8] = 'T'
+			}
+		}
+		//         spew.Dump(mode)
+		modsep := ""
+
+		fmt.Printf(
+			"%c%s%3s%s%3s%s%3s  %2d  %10s %10s %9d\t%v\t%s\n",
+			//                                     "%c|%3s|%3s|%3s  %2d  %10s  %-10s %9d\t%v\t%s\n",
+			dirEntry.typeEntry,
+			modsep,
+			string(mode[0:3]),
+			modsep,
+			string(mode[3:6]),
+			modsep,
+			string(mode[6:]),
+			dirEntry.hardLink,
+			dirEntry.userName,
+			dirEntry.groupName,
+			dirEntry.osFileInfo.Size(),
+			dirEntry.osFileInfo.ModTime().Format("Jan 02 15:04"),
+			dirEntry.name,
+		)
+	}
+}
+
 func printListFiles() {
 	// algo : don't ask me - I get it from coreutils ls.c
 
 	sort.Slice(dirEntries, func(i, j int) bool {
 		// Premier critère: comparer les types
-		i_type := dirEntries[i].typeEntr
-		j_type := dirEntries[j].typeEntr
+		i_type := dirEntries[i].typeEntry
+		j_type := dirEntries[j].typeEntry
 
 		//         }
 
@@ -173,5 +229,14 @@ func printListFiles() {
 
 		return a < b
 	})
-	dirEntries.printByColumn()
+
+	switch conf.format {
+	case "long":
+		dirEntries.printLong()
+
+	default:
+		dirEntries.printByColumn()
+	}
+	//         dirEntries.printByColumn()
+
 }

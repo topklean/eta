@@ -2,6 +2,7 @@
 file.go
 
 	relative do files
+	TBD: utf8.RuneCountInString(string)
 */
 package main
 
@@ -9,23 +10,25 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/davecgh/go-spew/spew"
 )
 
 type dirEntryInfo struct {
-	name           string
-	absName        string
-	dirName        string
+	name string
+	//     absName        string
+	//     dirName        string
 	nameLen        int
 	displayName    string
 	displayNameLen int
 	mode           string
 	userName       string
 	groupName      string
-	typeEntr       rune
+	typeEntry      rune
 	inode          string
 	hardLink       uint64
 	softLink       int
@@ -38,116 +41,147 @@ type sliceDirEntries []dirEntryInfo
 
 var dirEntries sliceDirEntries
 
-func (dirEntries *sliceDirEntries) add(fileInfo fs.FileInfo, arg string) {
+func (dirEntry *dirEntryInfo) addType(fileInfo *fs.FileInfo, arg string) {
 
-	// we need to rebuild the path for sym link
-	path, _ := filepath.Abs(arg)
+	mode := (*fileInfo).Mode()
+	var typeEntry rune
+
+	switch {
+
+	// link
+	case mode&fs.ModeSymlink != 0:
+		typeEntry = 'l'
+		//         only do get link target in long format
+		//         name -> target
+		//         TBD: dereference link
+		if conf.format == "long" {
+			// we need to rebuild the filePath for sym link
+			filePath, _ := filepath.Abs(arg + "/" + (*dirEntry).name)
+			target, err := os.Readlink(filePath)
+			if err != nil {
+				(*dirEntry).name += " -> " + fmt.Sprintf("%s", err)
+			} else {
+				(*dirEntry).name += " -> " + target
+			}
+		}
+
+	// dir ?
+	case mode&fs.ModeDir != 0:
+		typeEntry = 'd'
+
+	// Charactere Device
+	case mode&fs.ModeCharDevice != 0:
+		typeEntry = 'c'
+		// TBD: get major/minor number
+
+	// Device
+	case mode&fs.ModeDevice != 0:
+		typeEntry = 'b'
+		// TBD: get major/minor number
+
+	// Pipe
+	case mode&fs.ModeNamedPipe != 0:
+		typeEntry = 'p'
+
+	// Socket
+	case mode&fs.ModeSocket != 0:
+		typeEntry = 's'
+
+	default:
+		typeEntry = '-'
+	}
+
+	// Append ?
+	if mode&fs.ModeAppend != 0 {
+		typeEntry = 'a'
+	}
+
+	(*dirEntry).typeEntry = typeEntry
+	// return typeEntry
+}
+
+func (dirEntry *dirEntryInfo) addUserGroupName(uid, gid uint32) {
+
+	uidAsString := fmt.Sprintf("%d", uid)
+	user, err := user.LookupId(uidAsString)
+	if err != nil {
+		(*dirEntry).userName = uidAsString
+	} else {
+		(*dirEntry).userName = user.Username
+	}
+
+	gidAsInt := int(gid)
+	group_name, err := LookupId(gidAsInt) // opti with internal cache
+	if err != nil {
+		(*dirEntry).groupName = fmt.Sprintf("%d", gidAsInt)
+	} else {
+		(*dirEntry).groupName = group_name.Name
+	}
+
+}
+
+func (dirEntries *sliceDirEntries) add(fileInfo *fs.FileInfo, arg string) {
 
 	// stat the file for uid/gid/hard link/size...
-	sys, ok := fileInfo.Sys().(*syscall.Stat_t)
+	sys, ok := (*fileInfo).Sys().(*syscall.Stat_t)
+
 	if !ok {
 		fmt.Printf("Cannot stat file %s ...", arg)
 		return
 	}
 
-	//     userUid := fmt.Sprintf("%d", sys.Uid)
-	//     var userName string
-	//     user_name, err := user.LookupId(userUid)
-	//     if err != nil {
-	//         userName = userUid
-	//     } else {
-	//         userName = user_name.Username
-	//     }
-
-	//     groupGid := int(sys.Gid)
-	//     var groupName string
-	//     group_name, err := LookupId(groupGid) // opti withh internal cache
-	//     // so slow :(
-	//     //             group_name, err := user.LookupGroupId(groupGid)
-	//     if err != nil {
-	//         groupName = fmt.Sprintf("%d", groupGid)
-	//     } else {
-	//         groupName = group_name.Name
-	//     }
-
-	hard_link := sys.Nlink
-
-	// type of entry
-	typeEntrie := '-'
-	// target of link
-	var target string
-	// get mod of entry
-	mode := fileInfo.Mode()
-	//
-	switch {
-
-	// link
-	case mode&fs.ModeSymlink != 0:
-		typeEntrie = 'l'
-		// add the target
-		target, err := os.Readlink(path)
-		if err != nil {
-			target = "-> target not found..."
-		} else {
-			target = "->" + target
-		}
-
-		// dir ?
-	case mode&fs.ModeDir != 0:
-		typeEntrie = 'd'
-
-	// Charactere Device
-	case mode&fs.ModeCharDevice != 0:
-		typeEntrie = 'c'
-		// get major number
-
-	// Device
-	case mode&fs.ModeDevice != 0:
-		typeEntrie = 'b'
-
-	// Pipe
-	case mode&fs.ModeNamedPipe != 0:
-		typeEntrie = 'p'
-
-	// Socket
-	case mode&fs.ModeSocket != 0:
-		typeEntrie = 's'
-	}
-
-	// Append ?
-	if mode&fs.ModeAppend != 0 {
-		typeEntrie = 'a'
-	}
-
-	// keep filename max len (for futur formating printing)
-	fileName := fileInfo.Name()
-
-	namelen := len(fileName)
-
+	// element of dir (an entry)
+	// just
 	dirEntry := dirEntryInfo{
-		name:     fileName + target,
-		dirName:  path,
-		absName:  path + "/" + fileName,
-		nameLen:  namelen,
-		typeEntr: typeEntrie,
-		//         userName:   userName,
-		//         groupName:  groupName,
-		hardLink:   hard_link,
-		osFileInfo: fileInfo,
+		name:       (*fileInfo).Name(),
+		hardLink:   sys.Nlink,
+		osFileInfo: (*fileInfo),
 	}
-	dirEntry.displayName = dirEntry.getNameAndFrills()
-	dirEntry.displayNameLen = len(dirEntry.displayName)
 
+	// len of file name
+	dirEntry.nameLen = len(dirEntry.name)
+
+	// add type link, dir, file, block, ...
+	// if link and format long, add target in name file
+	dirEntry.addType(fileInfo, arg)
+
+	// user and group Name
+	// only in long format
+	//  TBD: add in other format (config flag)
+	if conf.format == "long" {
+		dirEntry.addUserGroupName(sys.Uid, sys.Gid)
+	}
+
+	dirEntry.setNameToDisplay()
+	//     dirEntry.displayNameLen = len(dirEntry.displayName)
+
+	// finaly, add entry to array
 	*dirEntries = AppendDirEntry(*dirEntries, dirEntry)
 }
 
-// func (dirEntry *dirEntryInfo) quoteName() string {
-//     // TBD
-//     // if name file contain:
-//     // espace ! " # $ % & ' () * + , - . : ; < = > ? / } @ [ \ ] ^ _ ` { | } ~ DEL
-//     // the firts 31 char of ascii table, have to be escaped or displayed in plain text
+//	var special []rune = []rune{
+//	    ' ', '(', ')', '!', '"', '#', '$', '&', '\'', '*', '+', ',', '/', ':', ';', '<', '>', '?', '\\', '^', '`', '|', '~',
+//	}
+var special []rune = []rune{' '}
 
-// }
+func (dirEntry *dirEntryInfo) quoteName() bool {
+	// TBD
+	// if name file contain:
+	// espace ! " # $ % & ' () * + , - . : ; < = > ? / } @ [ \ ] ^ _ ` { | } ~ DEL
+	// the firts 31 char of ascii table, have to be escaped or displayed in plain text
+	//     for i, c := range dirEntry.name {
+	//         if
+	//         fmt.Printf("i: %d, c:%c", i, c)
+	//     }
+	//     _ = special
+	// TBD: remove the string cast... because called in loop for every files... no good
+	if strings.ContainsAny(dirEntry.name, string(special)) {
+		//         fmt.Printf("to quote: %s\n", (*dirEntry).name)
+		return true
+	}
+
+	return false
+}
 
 func (dirEntry *dirEntryInfo) getMode() []rune {
 	mode := []rune(fmt.Sprintf("%s", (*dirEntry).osFileInfo.Mode()))
@@ -156,22 +190,75 @@ func (dirEntry *dirEntryInfo) getMode() []rune {
 	return mode
 }
 
-func (dirEntry *dirEntryInfo) getNameAndFrills() string {
-	// file indictor
-	//     var Indicator = make(map[string]string)
+// func (dirEntry *dirEntryInfo) setNameColor() string {
+//     name := (*dirEntry).name
+// }
+
+func (dirEntry *dirEntryInfo) setNameToDisplay() {
+
+	// TBD: quoting must be done first
+	//      Indicator must be done last
+	//      Colors must be done on the name without indicator
+	//		the len of name do not take the colors codes!!!
+
 	name := (*dirEntry).name
 
-	// do we have to quote the file ???
-	typeEntry := (*dirEntry).typeEntr
+	if (*dirEntry).quoteName() {
+		name = "'" + name + "'"
+	}
+	// TBD : colors must be donne afte column calculation !!!
+	//     var colorsLenChar int = 0
+
+	colorsLenChar := 0
+	//     fmt.Printf("Colors: %v", conf.colorsEnable)
+	if conf.colorsEnable {
+		switch {
+
+		case (*dirEntry).typeEntry == 'd':
+			name = colorsMap["dir"] + name + colorsMap["reset"]
+			colorsLenChar = len(colorsMap["dir"])
+
+		case (*dirEntry).typeEntry == 'l':
+			name = colorsMap["link"] + name + colorsMap["reset"]
+			colorsLenChar = len(colorsMap["link"])
+
+		case (*dirEntry).typeEntry == 'p':
+			name = colorsMap["pipe"] + name + colorsMap["reset"]
+			colorsLenChar = len(colorsMap["pipe"])
+
+		case (*dirEntry).typeEntry == 's':
+			name = colorsMap["socket"] + name + colorsMap["reset"]
+			colorsLenChar = len(colorsMap["socket"])
+
+		case (*dirEntry).typeEntry == 'c':
+			name = colorsMap["charDevice"] + name + colorsMap["reset"]
+			colorsLenChar = len(colorsMap["charDevice"])
+
+			//         case (*dirEntry).typeEntry == 's':
+			//             name = colorsMap["socket"] + name + colorsMap["reset"]
+			//             colorsLenChar = len(colorsMap["socket"])
+			//         case (*dirEntry).typeEntry == 's':
+			//             name = colorsMap["socket"] + name + colorsMap["reset"]
+			//             colorsLenChar = len(colorsMap["socket"])
+		default:
+			//             name = colorsMap["default"] + name + colorsMap["reset"]
+			//             name = colorsMap["default"] + name + colorsMap["reset"]
+			colorsLenChar = 0
+		}
+		colorsLenChar += len(colorsMap["reset"])
+	}
+
 	if conf.indicator {
 		switch {
-		case typeEntry == 'd':
+		case (*dirEntry).typeEntry == 'd':
+			//             if conf.colorsEnable {
 			name += indicatorDir
-		case typeEntry == 'l':
+			//             }
+		case (*dirEntry).typeEntry == 'l':
 			name += indicatorLink
-		case typeEntry == 'p':
+		case (*dirEntry).typeEntry == 'p':
 			name += indicatorPipe
-		case typeEntry == 's':
+		case (*dirEntry).typeEntry == 's':
 			name += indicatorSock
 		default:
 			// exec
@@ -184,85 +271,9 @@ func (dirEntry *dirEntryInfo) getNameAndFrills() string {
 			}
 		}
 	}
-	return name
+	(*dirEntry).displayName = name
+	(*dirEntry).displayNameLen = len(name) - colorsLenChar
 }
-
-// func (dirEntry dirEntryInfo) String() string {
-//     switch conf.format {
-
-//     case "long":
-//         // get mod from osFile
-//         // => [ T u g t rwx rwx rwx ]
-//         mode := []rune(fmt.Sprintf("%s", dirEntry.osFileInfo.Mode()))
-//         // get only the last 9 char rwxwxrwx
-//         mode_tmp := mode[:len(mode)-9]
-//         mode = mode[len(mode_tmp):]
-
-//         if dirEntry.osFileInfo.Mode()&fs.ModeSetuid != 0 {
-//             if mode[2] == 'x' {
-//                 mode[2] = 's'
-//             } else {
-//                 mode[2] = 'S'
-//             }
-//         }
-
-//         if dirEntry.osFileInfo.Mode()&fs.ModeSetgid != 0 {
-//             if mode[5] == 'x' {
-//                 mode[5] = 's'
-//             } else {
-//                 mode[5] = 'S'
-//             }
-//         }
-//         //         spew.Dump(mode)
-
-//         if dirEntry.osFileInfo.Mode()&fs.ModeSticky != 0 {
-//             if mode[8] == 'x' {
-//                 mode[8] = 't'
-//             } else {
-//                 mode[8] = 'T'
-//             }
-//         }
-//         //         spew.Dump(mode)
-//         modsep := ""
-
-//         return fmt.Sprintf(
-//             "%c%s%3s%s%3s%s%3s  %2d  %10s %10s %9d\t%v\t%s\n",
-//             //                                     "%c|%3s|%3s|%3s  %2d  %10s  %-10s %9d\t%v\t%s\n",
-//             dirEntry.typeEntr,
-//             modsep,
-//             string(mode[0:3]),
-//             modsep,
-//             string(mode[3:6]),
-//             modsep,
-//             string(mode[6:]),
-//             dirEntry.hardLink,
-//             dirEntry.userName,
-//             dirEntry.groupName,
-//             dirEntry.osFileInfo.Size(),
-//             dirEntry.osFileInfo.ModTime().Format("Jan 02 15:04"),
-//             dirEntry.name,
-//         )
-
-//     case "one":
-//         return fmt.Sprintf("%s\n", dirEntry.name)
-
-//     //     default:
-//     //         fmt.Println(conf.formatColRemaining)
-//     //         if format.ColRemaining > 1 {
-//     //             format.ColRemaining = format.ColRemaining - 1
-//     //             return fmt.Sprintf(format.One+"│", dirEntry.name)
-//     //         } else {
-//     //             format.ColRemaining = format.MaxCol
-
-//     //             return fmt.Sprintf(format.One+"│\n", dirEntry.name)
-//     //         }
-//     default:
-//         return "toto"
-
-//     }
-
-//     // return
-// }
 
 func listDir() {
 
@@ -287,7 +298,10 @@ func listDir() {
 		//			rep
 		//			fichiers / args
 
+		//         listbegin := time.Now().UnixMilli()
 		direntries, err := os.ReadDir(arg)
+		//         listend := time.Now().UnixMilli()
+		//         fmt.Printf("args: %s, ReadDir: %d\n", arg, listend-listbegin)
 
 		if err != nil {
 			// arg is a file not dir
@@ -299,7 +313,7 @@ func listDir() {
 				// go to next arg
 				continue
 			} else {
-				dirEntries.add(direntry, arg)
+				dirEntries.add(&direntry, arg)
 			}
 			continue
 		}
@@ -316,22 +330,31 @@ func listDir() {
 					fmt.Println(err)
 					continue
 				} else {
-					dirEntries.add(direntry, arg)
+					dirEntries.add(&direntry, arg)
 				}
 
 			}
 		}
 
 		// elements from readDir
+		//         b := time.Now().UnixMilli()
+		//         e := time.Now().UnixMilli()
 		for _, direntry := range direntries {
 
+			//             listbegin = time.Now().UnixMilli()
 			fileInfo, err := direntry.Info()
+			//             _ = fileInfo
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			dirEntries.add(fileInfo, arg)
+			dirEntries.add(&fileInfo, arg)
+			//             listend = time.Now().UnixMilli()
+
+			//             fmt.Printf("add: %s, ReadDir: %d\n", fileInfo.Name(), listend-listbegin)
 		}
+		//         e = time.Now().UnixMilli()
+		//         fmt.Printf("all: %d\n", e-b)
 
 	}
 

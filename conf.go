@@ -49,28 +49,27 @@ type structConfStty struct {
 }
 
 type configuration struct {
-	progName    string // if called with an link, we can change behaviors
-	progVersion string
-	os          string
-	tty         structConfStty
-	ttySizeCol  int
-	dotFile     bool   // display or not hidden file
-	dotDir      bool   // display or not the . .. file
-	colors      string // auto (default), always, none
-	inode       bool
-	format      string
-	sortReverse bool
-	oneperline  bool
-	dirOnly     bool // just display the directories
-	dirFirst    bool // display dir first
-	indicator   bool
-	sortKey     string
+	progName     string // if called with an link, we can change behaviors
+	progVersion  string
+	os           string
+	tty          structConfStty
+	ttySizeCol   int
+	dotFile      bool   // display or not hidden file
+	dotDir       bool   // display or not the . .. file
+	colorsWhen   string // auto (default), always, none
+	colorsEnable bool
+	inode        bool
+	format       string
+	sortReverse  bool
+	oneperline   bool
+	dirOnly      bool // just display the directories
+	dirFirst     bool // display dir first
+	indicator    bool
+	sortKey      string
 
 	cwd   string // current working directory
 	debug bool
 }
-
-// var Indicator map[string]rune // char to add at the end of dirEntries * = / @  |
 
 // func Conf
 func (conf *configuration) configurationInit() {
@@ -80,7 +79,8 @@ func (conf *configuration) configurationInit() {
 	conf.progVersion = "0.0.1"
 	conf.dotFile = false
 	conf.dotDir = false
-	conf.colors = colorsAuto
+	// conf.colorsWhen = colorsAuto
+	conf.colorsEnable = false
 	conf.sortReverse = false
 	conf.inode = false
 	conf.oneperline = false
@@ -103,8 +103,6 @@ func (conf *configuration) configurationInit() {
 	o, _ := os.Stdout.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
 		//Terminal
-		// TBD: must test if redirection in file
-
 		//Display info to the terminal
 		conf.tty.stdoutType = typeCharDevice
 		conf.ttySizeCol, _, err = term.GetSize(int(os.Stdout.Fd()))
@@ -113,9 +111,11 @@ func (conf *configuration) configurationInit() {
 		//         }
 	} else {
 		// Display info to a pipe
-		fmt.Fprintf(os.Stderr, "ERR: stdout not a terminal\n")
+		//         fmt.Fprintf(os.Stderr, "ERR: stdout not a terminal\n")
+		// ls algo when en grid mod, just one columns
 		conf.tty.stdoutType = typePipe
 	}
+
 	// stdin
 	o, _ = os.Stdin.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
@@ -125,6 +125,7 @@ func (conf *configuration) configurationInit() {
 		// Display info to a pipe
 		conf.tty.stdinType = typePipe
 	}
+
 	// stderr
 	o, _ = os.Stderr.Stat()
 	if (o.Mode() & os.ModeCharDevice) == os.ModeCharDevice { //Terminal
@@ -161,6 +162,7 @@ func (params *parameters) paramsInit() int {
 			//             DefaultValue: false,
 			DefaultValue: conf.dotDir,
 		},
+		// TBD : narrow the possible value.
 		"color": {
 			Name:    "color",
 			Opt:     "c",
@@ -168,7 +170,7 @@ func (params *parameters) paramsInit() int {
 			Help:    "[auto|never|always] when to enable colors (default: auto)",
 			Value:   new(string),
 			//             DefaultValue: "never",
-			DefaultValue: conf.colors,
+			DefaultValue: conf.colorsWhen,
 		},
 		"inode": {
 			Name:    "inode",
@@ -188,15 +190,6 @@ func (params *parameters) paramsInit() int {
 			//             DefaultValue: false,
 			DefaultValue: false,
 		},
-		"reverse": {
-			Name:    "revert sort",
-			Opt:     "r",
-			OptLong: "reverse",
-			Help:    "Reverse sort",
-			Value:   new(bool),
-			//             DefaultValue: false,
-			DefaultValue: conf.sortReverse,
-		},
 		"one": {
 			Name:    "one",
 			Opt:     "1",
@@ -215,14 +208,6 @@ func (params *parameters) paramsInit() int {
 			//             DefaultValue: false,
 			DefaultValue: conf.dirOnly,
 		},
-		"indicator": {
-			Name: "indicator",
-			Opt:  "F",
-			//             OptLong:      "",
-			Help:         "append indicator (one of */=>@|) to entries",
-			Value:        new(bool),
-			DefaultValue: conf.indicator,
-		},
 		"dirFirst": {
 			Name:    "dirFirst",
 			Opt:     "g",
@@ -232,6 +217,14 @@ func (params *parameters) paramsInit() int {
 			//             DefaultValue: true,
 			DefaultValue: conf.dirFirst,
 		},
+		"indicator": {
+			Name: "indicator",
+			Opt:  "F",
+			//             OptLong:      "",
+			Help:         "append indicator (one of */=>@|) to entries",
+			Value:        new(bool),
+			DefaultValue: conf.indicator,
+		},
 		"sortKey": {
 			Name:    "sortKey",
 			Opt:     "k",
@@ -240,6 +233,15 @@ func (params *parameters) paramsInit() int {
 			Value:   new(string),
 			//             DefaultValue: "time",
 			DefaultValue: conf.sortKey,
+		},
+		"reverse": {
+			Name:    "revert sort",
+			Opt:     "r",
+			OptLong: "reverse",
+			Help:    "Reverse sort",
+			Value:   new(bool),
+			//             DefaultValue: false,
+			DefaultValue: conf.sortReverse,
 		},
 		"help": {
 			Name:         "help",
@@ -323,7 +325,15 @@ func paramsSetConf(confProvided configuration, params parameters) configuration 
 
 	confProvided.dotFile = *params["all"].Value.(*bool)
 	confProvided.dotDir = *params["almost-all"].Value.(*bool)
-	confProvided.colors = *params["color"].Value.(*string)
+
+	colors := *params["color"].Value.(*string)
+	if (colors == "auto" && conf.tty.stdoutType == typeCharDevice) ||
+		colors == "always" {
+		confProvided.colorsEnable = true
+	} else {
+		confProvided.colorsEnable = false
+	}
+
 	confProvided.sortReverse = *params["reverse"].Value.(*bool)
 	confProvided.inode = *params["inode"].Value.(*bool)
 	confProvided.oneperline = *params["one"].Value.(*bool)

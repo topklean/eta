@@ -5,7 +5,7 @@ version: '3'
 vars:
   GREETING: j'apprends le go en clonant la command linux ls
   BUILDDIR: ./build
-  PROGNAME: tpkls
+  PROGNAME: eta
 
 tasks:
   default:
@@ -14,6 +14,10 @@ tasks:
     silent: true
 
   build:
+    preconditions:
+      - sh: '[[ -d {{.BUILDDIR }} ]]'
+        msg: "{{.BUILDDIR}} not found!!!"
+
     cmds:
       - go build -o {{.BUILDDIR}}/{{.PROGNAME}} .
 

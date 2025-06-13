@@ -1,4 +1,4 @@
-module dodo/tls
+module dodo/eta
 
 go 1.24.2
 
